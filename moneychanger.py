@@ -1,3 +1,6 @@
+import truststore
+truststore.inject_into_ssl()
+
 from typing import Tuple, Dict
 import os
 import json
@@ -5,19 +8,20 @@ import requests
 import gradio as gr
 from dotenv import load_dotenv
 from openai import OpenAI
-import truststore
+from langsmith import traceable
 
-truststore.inject_into_ssl()
 load_dotenv()
 
 EXCHANGERATE_API_KEY = os.getenv("EXCHANGERATE_API_KEY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-
+os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY")
+os.environ["LANGSMITH_TRACING"] = os.getenv("LANGSMITH_TRACING")
+os.environ["LANGSMITH_PROJECT"] = os.getenv("LANGSMITH_PROJECT") 
 
 # Tool definition for function calling
 
 
-
+@traceable(name="get_exchange_rate", description="Get the exchange rate and convert an amount from one currency to another.")
 def get_exchange_rate(base: str, target: str, amount: str) -> Tuple:
     """Return a tuple of (base, target, amount, conversion_result (2 decimal places))"""
     response = requests.get(
@@ -32,7 +36,7 @@ def get_exchange_rate(base: str, target: str, amount: str) -> Tuple:
             f"Error fetching exchange rate: {response.status_code} - {response.text}"
         )
 
-
+@traceable(name="call_llm", description="Call the LLM to process user input and determine if function calling is needed.")
 def call_llm(textbox_input: str) -> Dict:
     """Make a call to gpt-4o-mini via GitHub Models with function calling enabled.
        The LLM decides whether to call get_exchange_rate based on the user's input."""
@@ -91,7 +95,7 @@ def call_llm(textbox_input: str) -> Dict:
     )
     return completion
 
-
+@traceable(name="run_pipeline", description="Process user input, call the LLM, and return the final result for the UI.")
 def run_pipeline(textbox_input: str) -> str:
     """Based on textbox_input, determine if tools are needed and return the result."""
     if not textbox_input.strip():
